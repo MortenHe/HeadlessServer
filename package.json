@@ -1,0 +1,27 @@
+{
+  "name": "headlessserver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MortenHe/WebSocketHeadlessPlayerServer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MortenHe/WebSocketHeadlessPlayerServer/issues"
+  },
+  "homepage": "https://github.com/MortenHe/WebSocketHeadlessPlayerServer#readme",
+  "dependencies": {
+    "colors": "^1.3.2",
+    "fs-extra": "^7.0.0",
+    "mplayer-wrapper": "^1.0.0",
+    "path": "^0.12.7",
+    "ws": "^6.0.0"
+  }
+}

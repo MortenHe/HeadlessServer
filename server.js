@@ -6,15 +6,12 @@ const player = createPlayer();
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 8080, clientTracking: true });
 
-//Zeit Formattierung laden: [5, 13, 22] => 05:13:22
-const timelite = require('timelite');
-
 //Filesystem und Path Abfragen fuer Playlist
 const path = require('path');
 const fs = require('fs-extra');
 
 //Array Shuffle Funktion
-var shuffle = require('shuffle-array');
+//var shuffle = require('shuffle-array');
 
 //Farbiges Logging
 const colors = require('colors');
@@ -22,69 +19,262 @@ const colors = require('colors');
 //Befehle auf Kommandzeile ausfuehren
 const { execSync } = require('child_process');
 
-//Verzeichnis, in dem die Audiodateien liegen (linxus vs. windows)
-const audioDir = "/media/headless";
-console.log("audio files are located in " + audioDir.yellow);
+//Verzeichnisse
+const mainDir = "/media/headless";
+const audioDir = mainDir + "/audio";
+console.log("audio files dir:\n" + audioDir.cyan);
 
 //Lautstaerke zu Beginn auf 100% setzen
 let initialVolumeCommand = "sudo amixer sset PCM 100% -M";
-console.log(initialVolumeCommand)
 execSync(initialVolumeCommand);
 
-//Aktuelle Infos zu Volume / Position in Song / Position innerhalb der Playlist / Playlist / PausedStatus / Random merken, damit Clients, die sich spaeter anmelden, diese Info bekommen
+//Aktuelle Infos zu Playback 
 currentVolume = 50;
-currentPosition = -1;
+currentPosition = 0;
 currentFiles = [];
-currentActiveItem = "";
 currentPlaylist = "";
+currentPlaylistIndex = 0;
+currentTime = 0;
 
-//Player zu Beginn auf 50% stellen
+//Liste der Playlists
+playlistArray = [];
+
+//Player zu Beginn auf 50% volume stellen
 player.setVolume(currentVolume);
 
 //Wenn Playlist fertig ist
 player.on('playlist-finish', () => {
     console.log("playlist finished");
 
-    //Position zuruecksetzen
+    //Position und Zeit zuruecksetzen
     currentPosition = -1;
+    currentTime = 0;
 
     //Info in JSON schreiben, dass Playlist vorbei ist
-    writeSessionJson();
+    writePlaylistJson();
 });
 
-//Wenn bei Track change der Filename geliefert wird
-player.on('filename', (filename) => {
+//Wenn aktuelle Dateinamen (inkl. Pfad) geliefert wird
+player.on("path", (path) => {
 
     //Position in Playlist ermitteln
-    currentPosition = currentFiles.indexOf(currentPlaylist + "/" + filename);
-
-    //neue Position in Session-JSON-File schreiben
-    writeSessionJson();
-});
+    currentPosition = currentFiles.indexOf(path);
+    console.log("play track " + currentPosition.toString().yellow + "\n" + path.cyan);
+})
 
 //Wenn sich ein Titel aendert (durch Nutzer oder durch den Player)
 player.on('track-change', () => {
 
-    //Neuen Dateinamen liefern
-    player.getProps(['filename']);
+    //Neuen Dateinamen liefern (inkl. Pfad)
+    player.getProps(["path"]);
 });
 
-//Infos aus letzter Session auslesen, falls die Datei existiert
-if (fs.existsSync('./lastSession.json')) {
+//Rekursiv ueber Verzeichnisse gehen
+var walk = (dir) => {
+
+    //Ergebnisse sammeln
+    var results = [];
+
+    //Dateien in Verzeichnis auflisten
+    var list = fs.readdirSync(dir);
+
+    //Ueber Dateien iterieren
+    list.forEach((file) => {
+
+        //Infos ueber Datei holen
+        file = path.resolve(dir, file);
+        var stat = fs.statSync(file);
+
+        //Wenn es ein Verzeichnis ist
+        if (stat && stat.isDirectory()) {
+
+            //Unterverzeichnis aufrufen
+            results = results.concat(walk(file));
+        }
+
+        //es ist eine Datei
+        else {
+
+            //nur mp3-Dateien sammeln
+            if (path.extname(file).toLowerCase() === '.mp3') {
+                results.push(file);
+            }
+        }
+    });
+
+    //Liste zurueckgeben
+    return results;
+}
+
+//Liste der Playlists ermitteln
+let list = fs.readdirSync(audioDir);
+
+//Ueber Elemente auf oberster Ebene gehen
+list.forEach((file) => {
+
+    //Infos ueber Datei holen
+    file = path.resolve(audioDir, file);
+    let stat = fs.statSync(file);
+
+    //Wenn es ein Verzeichnis ist
+    if (stat && stat.isDirectory()) {
+        playlistArray.push(file);
+    }
+
+    //es ist eine Datei
+    else {
+
+        //nur mp3-Dateien sammeln
+        if (path.extname(file).toLowerCase() === '.mp3') {
+            playlistArray.push(file);
+        }
+    }
+});
+console.log("available playlists:\n" + (playlistArray.join('\n')).green);
+
+//Letzte Playlist laden, falls es Infos gibt
+if (fs.existsSync(mainDir + '/_lastSession.json')) {
 
     //JSON-Objekt aus Datei holen
-    const lastSessionObj = fs.readJsonSync('./lastSession.json');
+    const lastSessionObj = fs.readJsonSync(mainDir + '/_lastSession.json');
 
     //Playlist-Pfad laden
-    currentPlaylist = lastSessionObj.path;
-    console.log("load playlist from last session " + currentPlaylist);
+    currentPlaylistIndex = playlistArray.indexOf(lastSessionObj.currentPlaylist);
+    console.log("last playlist:\n" + (lastSessionObj.currentPlaylist).magenta);
+    console.log("playlist index:\n" + (currentPlaylistIndex).toString().red);
 
-    //Letztes aktives Item laden
-    currentActiveItem = lastSessionObj.activeItem;
-
-    //diese Playlist zu Beginn spielen
-    setPlaylist(true);
+    if (currentPlaylistIndex === -1) {
+        console.log("couldn't find last playlist".red);
+        currentPlaylistIndex = 0;
+    }
 }
+
+//Player starten
+setPlaylist();
+
+//Playlist erstellen und starten
+function setPlaylist() {
+
+    //Playlist ermitteln
+    currentPlaylist = playlistArray[currentPlaylistIndex];
+    console.log("start playlist\n" + currentPlaylist.blue);
+
+    //Sicherstellen, dass Verzeichnis existiert, aus dem die Dateien geladen werden sollen
+    if (fs.existsSync(currentPlaylist)) {
+
+        //Playlist in JSON Session speichern (fuer Restart)
+        writeSessionJson();
+
+        //Infos ueber Datei / Dir holen
+        let file = path.resolve(audioDir, currentPlaylist);
+        var stat = fs.statSync(file);
+
+        //Wenn es ein Verzeichnis ist
+        if (stat && stat.isDirectory()) {
+
+            //alle mp3-Dateien in diesem Dir-Tree ermitteln
+            currentFiles = walk(currentPlaylist);
+        }
+
+        //es ist eine Datei
+        else {
+
+            //Liste der Dateien ist die einzelne Datei selbst
+            currentFiles = [currentPlaylist];
+        }
+
+        //Playlist-Datei schreiben (1 Zeile pro item)
+        console.log("current files:\n" + currentFiles.join("\n").yellow);
+        fs.writeFileSync("playlist.txt", currentFiles.join("\n"));
+
+        //Playlist-Datei laden und starten
+        player.exec("loadlist playlist.txt");
+
+        //Fortschritt in Playlist aus Datei lesen
+        let progressFile = mainDir + "/" + path.basename(currentPlaylist) + ".json"
+
+        //Wenn diese Playlist schon mal abgespielt wurde und sich an einer bestimmten Stelle befindet
+        if (fs.existsSync(progressFile)) {
+            console.log("load playlist progress from:\n" + progressFile.blue);
+
+            //JSON-Objekt aus Datei holen
+            const playlistObj = fs.readJsonSync(progressFile);
+
+            //Playlist-Pfad laden
+            currentPosition = playlistObj.position;
+            console.log("playlist position:\n" + (currentPosition).toString().magenta);
+
+            currentTime = playlistObj.time;
+            console.log("playlist time:\n" + (currentTime).toString().magenta);
+        }
+
+        //diese Playlist wird zum 1. Mal gestartet
+        else {
+            console.log("no progress info available".red);
+
+            //Playback bei 1. Titel von vorne beginnen
+            currentPosition = 0;
+            currentTime = 0;
+        }
+
+        //zu gewissem Titel springen, wenn nicht sowieso der erste Titel
+        if (currentPosition > 0) {
+            player.exec("pt_step " + currentPosition);
+        }
+
+        //zu gewisser Zeit springen, wenn wir nicht am Anfang sind
+        if (currentTime > 0) {
+            player.seek(currentTime);
+        }
+    }
+
+    //Verzeichnis existiert nicht
+    else {
+        console.log("dir doesn't exist " + currentPlaylist.red);
+
+        //1. Playlist laden und starten
+        currentPlaylistIndex = 0;
+        setPlaylist();
+    }
+}
+
+//Letzte Playlist (Datei oder Ordner) merken (fuer Restart)
+function writeSessionJson() {
+    fs.writeJsonSync(mainDir + '/_lastSession.json', { currentPlaylist: currentPlaylist });
+}
+
+//Infos der aktuellen Playlist in File schreiben
+function writePlaylistJson() {
+
+    //media/headless/audio/Schnuddel -> Schnuddel
+    let filename = path.basename(currentPlaylist);
+
+    //Position in Playlist und innerhalb des Titels merken
+    fs.writeJsonSync(mainDir + '/' + filename + '.json',
+        {
+            position: currentPosition,
+            time: currentTime
+        });
+}
+
+//Wenn time_pos property geliefert wird
+player.on('time_pos', (totalSecondsFloat) => {
+
+    //Float zu int: 13.4323 => 13
+    currentTime = Math.trunc(totalSecondsFloat);
+
+    if (currentTime % 5 === 0) {
+        console.log('track progress is', currentTime);
+    }
+
+    //Infos zu aktueller Datei in JSON schreiben
+    writePlaylistJson();
+});
+
+//Jede Sekunde die aktuelle Zeit innerhalb des Tracks liefern
+setInterval(() => {
+    player.getProps(['time_pos']);
+}, 1000);
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
 wss.on('connection', function connection(ws) {
@@ -100,14 +290,31 @@ wss.on('connection', function connection(ws) {
         let type = obj.type;
         let value = obj.value;
 
-        //Array von MessageObjekte erstellen, die an WS gesendet werden
-        let messageObjArr = [];
-
         //Pro Typ gewisse Aktionen durchfuehren
         switch (type) {
 
+            //Playlist wurde von Nutzer weitergeschaltet
+            case 'change-playlist':
+                console.log("change-playlist " + value);
+
+                if (value === -1 && currentPlaylistIndex === 0) {
+                    currentPlaylistIndex = playlistArray.length - 1;
+                }
+
+                else {
+
+                    //Neuen Playlistindex berechnen
+                    currentPlaylistIndex = (currentPlaylistIndex + value) % playlistArray.length
+                }
+
+                console.log("new playlist index:\n" + currentPlaylistIndex.toString().green)
+
+                //Playlist starten
+                setPlaylist();
+                break;
+
             //Song wurde vom Nutzer weitergeschaltet
-            case 'change-item':
+            case 'change-track':
                 console.log("change-item " + value);
 
                 //wenn der naechste Song kommen soll
@@ -148,12 +355,7 @@ wss.on('connection', function connection(ws) {
 
             //Innerhalb des Titels spulen
             case "seek":
-
-                //+/- 10 Sek
-                let seekTo = value ? 10 : -10;
-
-                //seek in item
-                player.seek(seekTo);
+                player.seek(value);
                 break;
 
             //Pause-Status toggeln
@@ -205,64 +407,3 @@ wss.on('connection', function connection(ws) {
         }
     });
 });
-
-//Playlist erstellen und starten
-function setPlaylist(reloadSession) {
-
-    //Sicherstellen, dass Verzeichnis existiert, aus dem die Dateien geladen werden sollen
-    if (fs.existsSync(currentPlaylist)) {
-
-        //Liste der files zuruecksetzen
-        currentFiles = [];
-
-        //Ueber Dateien in aktuellem Verzeichnis gehen
-        fs.readdirSync(currentPlaylist).forEach(file => {
-
-            //mp3 (audio) files sammeln
-            if ([".mp3"].includes(path.extname(file).toLowerCase())) {
-                console.log("add file " + file);
-                currentFiles.push(currentPlaylist + "/" + file);
-            }
-        });
-
-        //Bei Random und erlaubtem Random
-        if (currentRandom && currentAllowRandom) {
-
-            //FileArray shuffeln
-            shuffle(currentFiles);
-        }
-
-        //Playlist-Datei schreiben (1 Zeile pro item)
-        fs.writeFileSync("playlist.txt", currentFiles.join("\n"));
-
-        //Playlist-Datei laden und starten
-        player.exec("loadlist playlist.txt");
-
-        //Wenn die Daten aus einer alten Session kommen
-        if (reloadSession) {
-
-            //zu gewissem Titel springen, wenn nicht sowieso der erste Titel
-            if (currentPosition > 0) {
-                player.exec("pt_step " + currentPosition);
-            }
-        }
-    }
-
-    //Verzeichnis existiert nicht
-    else {
-        console.log("dir doesn't exist " + currentPlaylist.red);
-    }
-}
-
-//Infos der Session in File schreiben
-function writeSessionJson() {
-
-    //Playlist zusammen mit anderen Merkmalen merken fuer den Neustart
-    fs.writeJsonSync('./lastSession.json',
-        {
-            path: currentPlaylist,
-            activeItem: currentActiveItem,
-            allowRandom: currentAllowRandom,
-            position: currentPosition
-        });
-}
