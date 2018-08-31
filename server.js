@@ -24,9 +24,15 @@ const mainDir = "/media/headless";
 const audioDir = mainDir + "/audio";
 console.log("audio files dir:\n" + audioDir.cyan);
 
-//Lautstaerke zu Beginn auf 100% setzen
-let initialVolumeCommand = "sudo amixer sset PCM 100% -M";
-execSync(initialVolumeCommand);
+//System-Lautstaerke zu Beginn auf 100% setzen
+setSystemVolume(100);
+
+//Countdownzeit (in Sek.)
+const countdownTime = 50;
+var currentCountdownTime = countdownTime;
+
+//Countdown starten (jede Sekunde runterzaehlen)
+setInterval(countdown, 1000);
 
 //Aktuelle Infos zu Playback 
 currentVolume = 50;
@@ -276,6 +282,41 @@ setInterval(() => {
     player.getProps(['time_pos']);
 }, 1000);
 
+//Countdown mit Shutdown
+function countdown() {
+
+    //Countdown runterzaehlen
+    currentCountdownTime--;
+    console.log(currentCountdownTime + " seconds left")
+
+    //Fade Out kurz vor Ende des Countdowns
+    if (currentCountdownTime < 40 && currentCountdownTime >= 20) {
+
+        //Volume schrittweise verringern
+        let volume = (currentCountdownTime - 20) * 5;
+        setSystemVolume(volume);
+    }
+
+    //Anzahl der Sekunden bis Shutdown anzeigen 
+    if (currentCountdownTime < 20) {
+        console.log("shutdown in " + currentCountdownTime.toString().red)
+    }
+
+    if (currentCountdownTime === 0) {
+        console.log("shutdown".red);
+        process.exit();
+    }
+}
+
+//Systemlautstaerke setzen
+function setSystemVolume(volume) {
+
+    //Systemlautstaerke ist unabhaengig von Playerlautstaerke -> fuer Fadeout beim Countdown geeignet
+    let volumeCommand = "sudo amixer sset PCM " + volume + "% -M";
+    console.log(volumeCommand.yellow)
+    execSync(volumeCommand);
+}
+
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
 wss.on('connection', function connection(ws) {
     console.log("new client connected");
@@ -397,12 +438,15 @@ wss.on('connection', function connection(ws) {
                 player.setVolume(currentVolume);
                 break;
 
-            //System herunterfahren
-            case "shutdown":
-                console.log("shutdown");
+            //Countdown zuruecksetzen
+            case "reset-countdown":
+                console.log("reset countdown".green);
 
-                //Pi herunterfahren
-                execSync("shutdown -h now");
+                //Countdownzeit zuruecksetzen
+                currentCountdownTime = countdownTime;
+
+                //System-Volume wieder auf 100%
+                setSystemVolume(100);
                 break;
         }
     });

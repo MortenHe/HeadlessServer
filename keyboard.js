@@ -56,6 +56,11 @@ ws.on('open', function open() {
             case "p":
                 send("toggle-paused-restart", "");
                 break;
+
+            //reset countdown
+            case "r":
+                send("reset-countdown", "");
+                break;
         }
     });
 });
