@@ -28,7 +28,7 @@ console.log("audio files dir:\n" + audioDir.cyan);
 setSystemVolume(100);
 
 //Countdownzeit (in Sek.)
-const countdownTime = 50;
+const countdownTime = 600;
 var currentCountdownTime = countdownTime;
 
 //Countdown starten (jede Sekunde runterzaehlen)
@@ -138,6 +138,33 @@ list.forEach((file) => {
 });
 console.log("available playlists:\n" + (playlistArray.join('\n')).green);
 
+//Liste der Session Files ermitteln
+let sessionFiles = fs.readdirSync(mainDir);
+
+//Ueber Session Files (json, pico) gehen
+sessionFiles.forEach((file) => {
+
+    //Infos ueber Datei holen
+    filePath = path.resolve(mainDir, file);
+    let stat = fs.statSync(filePath);
+
+    //Wenn es eine Datei ist, aber nicht die _lastSession Datei
+    if (stat && stat.isFile() && file !== "_lastSession.json") {
+
+        //Datei-Endung (.json oder .wav) entfernen
+        fileWithoutExt = file.replace(/\.[^/.]+$/, "");
+
+        //wenn es keine passende Playlist zu dieser Datei gibt
+        if (!fs.existsSync(audioDir + "/" + fileWithoutExt)) {
+            console.log("playlist " + fileWithoutExt.red + " does not exist");
+            console.log("clean session file " + filePath.red);
+
+            //Session-Datei loeschen
+            fs.removeSync(filePath);
+        }
+    }
+});
+
 //Letzte Playlist laden, falls es Infos gibt
 if (fs.existsSync(mainDir + '/_lastSession.json')) {
 
@@ -188,6 +215,9 @@ function setPlaylist() {
             //Liste der Dateien ist die einzelne Datei selbst
             currentFiles = [currentPlaylist];
         }
+
+        //Namen der aktuellen Playlist vorlesen
+        readPlaylist();
 
         //Playlist-Datei schreiben (1 Zeile pro item)
         console.log("current files:\n" + currentFiles.join("\n").yellow);
@@ -302,8 +332,11 @@ function countdown() {
         console.log("shutdown in " + currentCountdownTime.toString().red)
     }
 
+    //Countdown abgelaufen
     if (currentCountdownTime === 0) {
         console.log("shutdown".red);
+
+        //TODO: System herunterfahren
         process.exit();
     }
 }
@@ -315,6 +348,35 @@ function setSystemVolume(volume) {
     let volumeCommand = "sudo amixer sset PCM " + volume + "% -M";
     console.log(volumeCommand.yellow)
     execSync(volumeCommand);
+}
+
+//Name der Playlist vorlesen
+function readPlaylist() {
+
+    //Aktuelle Playlist stoppen, damit Ansagen nicht ueberlagert wird
+    player.stop();
+
+    //Name der Playlist ermitteln
+    let playlistName = path.basename(currentPlaylist);
+
+    //Pico-Dateinamen ermitteln
+    picoFile = mainDir + "/" + playlistName + ".wav";
+
+    //Wenn noch kein Pico File existiert
+    if (!fs.existsSync(picoFile)) {
+        console.log("create pico file".red);
+
+        //Pico File erstellen
+        execSync('pico2wave --lang de-DE --wave "' + picoFile + '" "' + playlistName + '"');
+    }
+
+    //es gibt bereits ein Pico File
+    else {
+        console.log("pico file exists".green);
+    }
+
+    //Pico File abspielen
+    execSync("play '" + picoFile + "'");
 }
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
@@ -338,16 +400,19 @@ wss.on('connection', function connection(ws) {
             case 'change-playlist':
                 console.log("change-playlist " + value);
 
+                //Wenn die vorherige Playlist kommen soll und wir bereits bei Index 0 sind
                 if (value === -1 && currentPlaylistIndex === 0) {
+
+                    //Zum letzten Index in der Liste springen
                     currentPlaylistIndex = playlistArray.length - 1;
                 }
 
+                //Wenn zu naechsten Playlist geschaltet werden soll, aber zur vorherigen Playlist und wir nicht bei Index 0 sind
                 else {
 
                     //Neuen Playlistindex berechnen
                     currentPlaylistIndex = (currentPlaylistIndex + value) % playlistArray.length
                 }
-
                 console.log("new playlist index:\n" + currentPlaylistIndex.toString().green)
 
                 //Playlist starten
