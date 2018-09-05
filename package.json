@@ -22,6 +22,7 @@
     "fs-extra": "^7.0.0",
     "mplayer-wrapper": "^1.0.0",
     "path": "^0.12.7",
+    "shuffle-array": "^1.0.1",
     "ws": "^6.0.0"
   }
 }

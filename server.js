@@ -11,7 +11,7 @@ const path = require('path');
 const fs = require('fs-extra');
 
 //Array Shuffle Funktion
-//var shuffle = require('shuffle-array');
+var shuffle = require('shuffle-array');
 
 //Farbiges Logging
 const colors = require('colors');
@@ -198,33 +198,60 @@ function setPlaylist() {
         //Playlist in JSON Session speichern (fuer Restart)
         writeSessionJson();
 
-        //Infos ueber Datei / Dir holen
-        let file = path.resolve(audioDir, currentPlaylist);
-        var stat = fs.statSync(file);
+        //Jede Playlist hat ihre eigene Datei mit dem Ablauf der Files
+        let playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
 
-        //Wenn es ein Verzeichnis ist
-        if (stat && stat.isDirectory()) {
+        //Wenn es zu dieser Playlist noch kein File gibt
+        if (!fs.existsSync(playlistFile)) {
+            console.log("no playlist file for:\n" + currentPlaylist.red);
 
-            //alle mp3-Dateien in diesem Dir-Tree ermitteln
-            currentFiles = walk(currentPlaylist);
+            //Infos ueber Datei / Dir holen
+            let file = path.resolve(audioDir, currentPlaylist);
+            var stat = fs.statSync(file);
+
+            //Wenn es ein Verzeichnis ist
+            if (stat && stat.isDirectory()) {
+
+                //alle mp3-Dateien in diesem Dir-Tree ermitteln
+                currentFiles = walk(currentPlaylist);
+            }
+
+            //es ist eine Datei
+            else {
+
+                //Liste der Dateien ist die einzelne Datei selbst
+                currentFiles = [currentPlaylist];
+            }
+
+            //Wenn die Playlist mit (random) benannt ist
+            if (currentPlaylist.indexOf("(random)")) {
+                console.log("random playlist".blue);
+
+                //Dateien als Random
+                shuffle(currentFiles);
+            }
+
+            //Playlist File erstellen
+            fs.writeFileSync(playlistFile, currentFiles.join("\n"));
         }
 
-        //es ist eine Datei
+        //es gibt schon ein Playlist file
         else {
+            console.log("use existing playlist file for:\n" + currentPlaylist.green);
 
-            //Liste der Dateien ist die einzelne Datei selbst
-            currentFiles = [currentPlaylist];
+            //Playlistdatei auslesen und in currentFiles schreiben
+            let files = fs.readFileSync(playlistFile, 'utf8');
+            currentFiles = files.split('\n');
         }
+
+        //Playlist-Datei schreiben (1 Zeile pro item)
+        console.log("current files:\n" + currentFiles.join("\n").yellow);
 
         //Namen der aktuellen Playlist vorlesen
         readPlaylist();
 
-        //Playlist-Datei schreiben (1 Zeile pro item)
-        console.log("current files:\n" + currentFiles.join("\n").yellow);
-        fs.writeFileSync("playlist.txt", currentFiles.join("\n"));
-
         //Playlist-Datei laden und starten
-        player.exec("loadlist playlist.txt");
+        player.exec("loadlist '" + playlistFile + "'");
 
         //Fortschritt in Playlist aus Datei lesen
         let progressFile = mainDir + "/" + path.basename(currentPlaylist) + ".json"
@@ -317,7 +344,11 @@ function countdown() {
 
     //Countdown runterzaehlen
     currentCountdownTime--;
-    console.log(currentCountdownTime + " seconds left")
+
+    //Regelmaesige Ausgaben ueber Countdown
+    if (currentCountdownTime % 10 === 0) {
+        console.log(currentCountdownTime + " seconds left");
+    }
 
     //Fade Out kurz vor Ende des Countdowns
     if (currentCountdownTime < 40 && currentCountdownTime >= 20) {
@@ -366,8 +397,14 @@ function readPlaylist() {
     if (!fs.existsSync(picoFile)) {
         console.log("create pico file".red);
 
+        //Dateiendung .mp3 bei Einzelfiles nicht vorlesen
+        let playlistText = playlistName.replace('.mp3', '');
+
+        //random Info nicht vorlesen
+        playlistText = playlistName.replace('(random)', '');
+
         //Pico File erstellen
-        execSync('pico2wave --lang de-DE --wave "' + picoFile + '" "' + playlistName + '"');
+        execSync('pico2wave --lang de-DE --wave "' + picoFile + '" "' + playlistText + '"');
     }
 
     //es gibt bereits ein Pico File
@@ -376,7 +413,7 @@ function readPlaylist() {
     }
 
     //Pico File abspielen
-    execSync("play '" + picoFile + "'");
+    execSync("play '" + picoFile + "' 2>&1");
 }
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
@@ -480,8 +517,11 @@ wss.on('connection', function connection(ws) {
                     //wieder von vorne beginnen
                     currentPosition = 0;
 
+                    //Playlistfile ermitteln
+                    let playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
+
                     //Playlist-Datei laden und starten
-                    player.exec("loadlist playlist.txt");
+                    player.exec("loadlist '" + playlistFile + "'");
                 }
                 break;
 
