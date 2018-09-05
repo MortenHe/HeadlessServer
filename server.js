@@ -251,7 +251,7 @@ function setPlaylist() {
         readPlaylist();
 
         //Playlist-Datei laden und starten
-        player.exec("loadlist '" + playlistFile + "'");
+        player.exec("loadlist '" + playlistFile + "' 1");
 
         //Fortschritt in Playlist aus Datei lesen
         let progressFile = mainDir + "/" + path.basename(currentPlaylist) + ".json"
@@ -413,7 +413,10 @@ function readPlaylist() {
     }
 
     //Pico File abspielen
-    execSync("play '" + picoFile + "' 2>&1");
+    player.exec("loadfile '" + picoFile + "'");
+
+    //TODO: kann weg
+    //execSync("play '" + picoFile + "' 2>&1");
 }
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
@@ -521,7 +524,7 @@ wss.on('connection', function connection(ws) {
                     let playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
 
                     //Playlist-Datei laden und starten
-                    player.exec("loadlist '" + playlistFile + "'");
+                    player.exec("loadlist '" + playlistFile + "' 1");
                 }
                 break;
 
