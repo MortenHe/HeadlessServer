@@ -18,6 +18,7 @@ const colors = require('colors');
 
 //Befehle auf Kommandzeile ausfuehren
 const { execSync } = require('child_process');
+const { exec } = require('child_process');
 
 //Verzeichnisse
 const mainDir = "/media/headless";
@@ -401,7 +402,7 @@ function readPlaylist() {
         let playlistText = playlistName.replace('.mp3', '');
 
         //random Info nicht vorlesen
-        playlistText = playlistName.replace('(random)', '');
+        playlistText = playlistText.replace('(random)', '');
 
         //Pico File erstellen
         execSync('pico2wave --lang de-DE --wave "' + picoFile + '" "' + playlistText + '"');
@@ -413,10 +414,7 @@ function readPlaylist() {
     }
 
     //Pico File abspielen
-    player.exec("loadfile '" + picoFile + "'");
-
-    //TODO: kann weg
-    //execSync("play '" + picoFile + "' 2>&1");
+    execSync("play '" + picoFile + "' 2>&1");
 }
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet
