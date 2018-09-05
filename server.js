@@ -18,7 +18,6 @@ const colors = require('colors');
 
 //Befehle auf Kommandzeile ausfuehren
 const { execSync } = require('child_process');
-const { exec } = require('child_process');
 
 //Verzeichnisse
 const mainDir = "/media/headless";
