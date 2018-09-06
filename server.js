@@ -412,8 +412,13 @@ function readPlaylist() {
         console.log("pico file exists".green);
     }
 
-    //Pico File abspielen
-    execSync("play '" + picoFile + "' 2>&1");
+    //Pico File abspielen (Befehl kann von aus gekillt werden)
+    try {
+        execSync("play '" + picoFile + "' 2>&1");
+    }
+    catch (e) {
+        //nichts tun, wenn Befehl von aussen gekillt wird
+    }
 }
 
 //Wenn sich ein WebSocket mit dem WebSocketServer verbindet

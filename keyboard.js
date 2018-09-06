@@ -3,6 +3,9 @@ console.log("connect to WS Server");
 const WebSocket = require('ws');
 const ws = new WebSocket('ws://localhost:8080');
 
+//Befehle auf Kommandzeile ausfuehren
+const { execSync } = require('child_process');
+
 //Input von Kommandozeile lesen
 var stdin = process.stdin;
 stdin.setRawMode(true);
@@ -24,11 +27,23 @@ ws.on('open', function open() {
 
             //next playlist
             case "e":
+                //Play-Befehl (pico file) killen, falls vorhanden
+                try {
+                    execSync("(! pidof play) || sudo kill -9 $(pidof play)");
+                }
+                catch (e) {
+                }
                 send("change-playlist", 1);
                 break;
 
             //previous playlist
             case "w":
+                //Play-Befehl (pico file) killen, falls vorhanden
+                try {
+                    execSync("(! pidof play) || sudo kill -9 $(pidof play)");
+                }
+                catch (e) {
+                }
                 send("change-playlist", -1);
                 break;
 
