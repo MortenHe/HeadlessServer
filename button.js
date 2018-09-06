@@ -6,28 +6,28 @@ const ws = new WebSocket('ws://localhost:8080');
 const Gpio = require('onoff').Gpio;
 
 //PreviousPlaylist-Button
-const buttonPreviousPlaylist = new Gpio(18, 'in', 'rising', { debounceTimeout: 10 });
+const buttonPreviousPlaylist = new Gpio(10, 'in', 'rising', { debounceTimeout: 10 });
 
 //NextPlaylist-Button
-const buttonNextPlaylist = new Gpio(23, 'in', 'rising', { debounceTimeout: 10 });
+const buttonNextPlaylist = new Gpio(25, 'in', 'rising', { debounceTimeout: 10 });
 
 //PreviousTrack-Button
-const buttonPreviousTrack = new Gpio(24, 'in', 'rising', { debounceTimeout: 10 });
+const buttonPreviousTrack = new Gpio(8, 'in', 'rising', { debounceTimeout: 10 });
 
 //NextTrack-Button
-const buttonNextTrack = new Gpio(25, 'in', 'rising', { debounceTimeout: 10 });
+const buttonNextTrack = new Gpio(7, 'in', 'rising', { debounceTimeout: 10 });
 
 //SeekMinus-Button
-const buttonSeekMinus = new Gpio(23, 'in', 'rising', { debounceTimeout: 10 });
+const buttonSeekMinus = new Gpio(12, 'in', 'rising', { debounceTimeout: 10 });
 
 //SeekPlus-Button
-const buttonSeekPlus = new Gpio(8, 'in', 'rising', { debounceTimeout: 10 });
+const buttonSeekPlus = new Gpio(16, 'in', 'rising', { debounceTimeout: 10 });
 
 //ResetCountdown-Button
-const buttonResetCountdown = new Gpio(7, 'in', 'rising', { debounceTimeout: 10 });
+const buttonResetCountdown = new Gpio(20, 'in', 'rising', { debounceTimeout: 10 });
 
 //Pause-Button
-const buttonPause = new Gpio(12, 'in', 'rising', { debounceTimeout: 10 });
+const buttonPause = new Gpio(21, 'in', 'rising', { debounceTimeout: 10 });
 
 //Wenn Verbindung mit WSS hergestellt wird
 ws.on('open', function open() {
