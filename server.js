@@ -45,6 +45,9 @@ currentTime = 0;
 //Liste der Playlists
 playlistArray = [];
 
+//txt-Datei der Titel der aktuellen Playlist
+playlistFile = null;
+
 //Player zu Beginn auf 50% volume stellen
 player.setVolume(currentVolume);
 
@@ -58,6 +61,18 @@ player.on('playlist-finish', () => {
 
     //Info in JSON schreiben, dass Playlist vorbei ist
     writePlaylistJson();
+});
+
+//Wenn sich der Pausezustand aendert
+player.on('pause', (paused) => {
+    console.log("paused: " + paused);
+
+    //Wenn nicht mehr pausiert ist
+    if (!paused) {
+
+        //10 sek zurueck springenq
+        player.seek(-10);
+    }
 });
 
 //Wenn aktuelle Dateinamen (inkl. Pfad) geliefert wird
@@ -199,7 +214,7 @@ function setPlaylist() {
         writeSessionJson();
 
         //Jede Playlist hat ihre eigene Datei mit dem Ablauf der Files
-        let playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
+        playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
 
         //Wenn es zu dieser Playlist noch kein File gibt
         if (!fs.existsSync(playlistFile)) {
@@ -251,7 +266,7 @@ function setPlaylist() {
         readPlaylist();
 
         //Playlist-Datei laden und starten
-        player.exec("loadlist '" + playlistFile + "' 1");
+        player.exec("loadlist '" + playlistFile + "'");
 
         //Fortschritt in Playlist aus Datei lesen
         let progressFile = mainDir + "/" + path.basename(currentPlaylist) + ".json"
@@ -514,6 +529,9 @@ wss.on('connection', function connection(ws) {
 
                     //Pause toggeln
                     player.playPause();
+
+                    //Pausenzustand ermitteln
+                    player.getProps(['pause']);
                 }
 
                 //Playlist ist schon vorbei
@@ -522,11 +540,8 @@ wss.on('connection', function connection(ws) {
                     //wieder von vorne beginnen
                     currentPosition = 0;
 
-                    //Playlistfile ermitteln
-                    let playlistFile = mainDir + "/" + path.basename(currentPlaylist) + ".txt"
-
                     //Playlist-Datei laden und starten
-                    player.exec("loadlist '" + playlistFile + "' 1");
+                    player.exec("loadlist '" + playlistFile + "'");
                 }
                 break;
 
