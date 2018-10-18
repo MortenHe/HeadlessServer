@@ -21,11 +21,11 @@
     "colors": "^1.3.2",
     "fs-extra": "^7.0.0",
     "mplayer-wrapper": "^1.0.0",
-    "onoff": "^3.2.1",
+    "onoff": "^3.2.2",
     "raspi": "^5.0.2",
     "raspi-rotary-encoder": "^0.4.0",
     "path": "^0.12.7",
     "shuffle-array": "^1.0.1",
-    "ws": "^6.0.0"
+    "ws": "^6.1.0"
   }
 }
